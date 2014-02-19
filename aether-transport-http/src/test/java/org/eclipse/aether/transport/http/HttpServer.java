@@ -223,6 +223,7 @@ public class HttpServer
         handlers.addHandler( new ProxyAuthHandler() );
         handlers.addHandler( new AuthHandler() );
         handlers.addHandler( new RedirectHandler() );
+        handlers.addHandler( new BigFileHandler() );
         handlers.addHandler( new RepoHandler() );
 
         server = new Server();
@@ -472,6 +473,36 @@ public class HttpServer
             location.append( "/repo" ).append( path.substring( 9 ) );
             response.setStatus( HttpServletResponse.SC_MOVED_PERMANENTLY );
             response.setHeader( HttpHeaders.LOCATION, location.toString() );
+        }
+
+    }
+
+    private class BigFileHandler
+        extends AbstractHandler
+    {
+        int accessCounter = 0;
+
+        public void handle( String target, Request req, HttpServletRequest request, HttpServletResponse response )
+            throws IOException
+        {
+            String path = req.getPathInfo();
+            if ( !path.startsWith( "/repo/bigfile/" ) )
+            {
+                return;
+            }
+            accessCounter = accessCounter + 1;
+            System.out.println(accessCounter % 3);
+            if ( (accessCounter % 3) == 0 )
+            {
+                // pass thru every 3rd
+                req.setHandled( false );
+            }
+            else
+            {
+                // send accepted for every other
+                req.setHandled( true );
+                response.setStatus( HttpServletResponse.SC_ACCEPTED );
+            }
         }
 
     }

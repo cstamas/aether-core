@@ -109,6 +109,7 @@ public class HttpTransporterTest
         TestFileUtils.writeString( new File( repoDir, "dir/file.txt" ), "test" );
         TestFileUtils.writeString( new File( repoDir, "empty.txt" ), "" );
         TestFileUtils.writeString( new File( repoDir, "some space.txt" ), "space" );
+        TestFileUtils.writeString( new File( repoDir, "bigfile/file.txt" ), "bigfile" );
         File resumable = new File( repoDir, "resume.txt" );
         TestFileUtils.writeString( resumable, "resumable" );
         resumable.setLastModified( System.currentTimeMillis() - 90 * 1000 );
@@ -255,6 +256,7 @@ public class HttpTransporterTest
         transporter.peek( new PeekTask( URI.create( "redirect/file.txt" ) ) );
         transporter.peek( new PeekTask( URI.create( "redirect/file.txt?scheme=https" ) ) );
     }
+
 
     @Test
     public void testGet_ToMemory()
@@ -431,6 +433,21 @@ public class HttpTransporterTest
         assertEquals( "test", task.getDataString() );
         assertEquals( 0, listener.dataOffset );
         assertEquals( 4, listener.dataLength );
+        assertEquals( 1, listener.startedCount );
+        assertTrue( "Count: " + listener.progressedCount, listener.progressedCount > 0 );
+        assertEquals( task.getDataString(), listener.baos.toString( "UTF-8" ) );
+    }
+
+    @Test
+    public void testGet_Accepted()
+        throws Exception
+    {
+        RecordingTransportListener listener = new RecordingTransportListener();
+        GetTask task = new GetTask( URI.create( "repo/bigfile/file.txt" ) ).setListener( listener );
+        transporter.get( task );
+        assertEquals( "bigfile", task.getDataString() );
+        assertEquals( 0, listener.dataOffset );
+        assertEquals( 7, listener.dataLength );
         assertEquals( 1, listener.startedCount );
         assertTrue( "Count: " + listener.progressedCount, listener.progressedCount > 0 );
         assertEquals( task.getDataString(), listener.baos.toString( "UTF-8" ) );

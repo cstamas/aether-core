@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -228,22 +229,32 @@ final class HttpTransporter
         throws Exception
     {
         EntityGetter getter = new EntityGetter( task );
-        HttpGet request = commonHeaders( new HttpGet( resolve( task ) ) );
-        resume( request, task );
-        try
-        {
-            execute( request, getter );
-        }
-        catch ( HttpResponseException e )
-        {
-            if ( e.getStatusCode() == HttpStatus.SC_PRECONDITION_FAILED && request.containsHeader( HttpHeaders.RANGE ) )
+        boolean requestDone;
+        do {
+            HttpGet request = commonHeaders( new HttpGet( resolve( task ) ) );
+            resume( request, task );
+            try
             {
-                request = commonHeaders( new HttpGet( request.getURI() ) );
                 execute( request, getter );
-                return;
+                requestDone = true;
             }
-            throw e;
-        }
+            catch ( HttpResponseException e )
+            {
+                if (e.getStatusCode() == HttpStatus.SC_ACCEPTED) {
+                    handleAcceptedResponse( request, getter );
+                    requestDone = false;
+                    continue;
+                }
+                if ( e.getStatusCode() == HttpStatus.SC_PRECONDITION_FAILED && request.containsHeader( HttpHeaders.RANGE ) )
+                {
+                    request = commonHeaders( new HttpGet( request.getURI() ) );
+                    execute( request, getter );
+                    requestDone = true;
+                    continue;
+                }
+                throw e;
+            }
+        } while (!requestDone);
     }
 
     @Override
@@ -457,7 +468,25 @@ final class HttpTransporter
         {
             throw new HttpResponseException( status, response.getStatusLine().getReasonPhrase() + " (" + status + ")" );
         }
+        if ( status == HttpStatus.SC_ACCEPTED )
+        {
+            throw new HttpResponseException( status, response.getStatusLine().getReasonPhrase() + " (" + status + ")" );
+        }
     }
+
+    private void handleAcceptedResponse( HttpGet request, EntityGetter task )
+        throws HttpResponseException
+    {
+        try
+        {
+            Thread.sleep( TimeUnit.SECONDS.toMillis( 2L ) );
+        }
+        catch ( InterruptedException e )
+        {
+            // ignore
+        }
+    }
+
 
     @Override
     protected void implClose()
